@@ -1,4 +1,4 @@
-# RX-8 C³M: Central Custom Control Module
+# RoXaS - RX-8 C³M: Central Custom Control Module
 
 A CAN-connected, voice-driven control system for a 2004 Mazda RX-8 show-car
 build. A Raspberry Pi CM5 is the hub, ESP32 modules are the satellites, and a
