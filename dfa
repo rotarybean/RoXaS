@@ -1,0 +1,25 @@
+warning: in the working copy of '.gitignore', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'LICENSE', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'README.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'SAFETY.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'docs/architecture.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'docs/bom.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'docs/can-tap.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'docs/decisions.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'docs/lighting.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'docs/voice-audio.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'firmware/can_tap/README.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'firmware/can_tap/include/pins.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'firmware/can_tap/platformio.ini', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'firmware/can_tap/src/main.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'firmware/lamp_module/README.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'hardware/README.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'hardware/can-tap/README.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'software/README.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'software/tools/extract_dtcs.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/README.md', LF will be replaced by CRLF the next time Git touches it
+ .gitignore         |  6 [32m++++[m
+ README.md          |  2 [32m+[m[31m-[m
+ docs/decisions.md  | 85 [32m+++++++++++++++++++++++++++++++++++++++++++++++++++++[m[31m-[m
+ software/README.md |  4 [32m+++[m
+ 4 files changed, 95 insertions(+), 2 deletions(-)

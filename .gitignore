@@ -29,3 +29,9 @@ venv/
 .pio/
 .vscode/
 build/
+
+# Web console secrets and local data (live on the Pi only)
+web.pass
+*.pass
+user.sqlite
+backups/

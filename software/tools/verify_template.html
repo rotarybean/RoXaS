@@ -1,0 +1,42 @@
+<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RoXaS part verification</title>
+<style>
+body{font:15px system-ui,sans-serif;margin:0;display:flex;height:100vh}
+#side{width:230px;overflow:auto;border-right:1px solid #ccc;padding:8px;box-sizing:border-box;font-size:13px}
+#main{flex:1;display:flex;min-width:0}
+#imgwrap{flex:1.1;overflow:auto;background:#eee}#imgwrap img{width:100%;display:block}
+#rows{flex:1;overflow:auto;padding:10px;box-sizing:border-box}
+.pg{display:block;padding:3px 6px;border-radius:4px;cursor:pointer}.pg:hover{background:#eef}.pg.cur{background:#cde}.pg.done{color:#1a7f37}
+.row{border:1px solid #ccc;border-radius:6px;padding:6px;margin-bottom:6px}.row.ok{background:#e6f6e9}.row.fixed{background:#fff4d6}.row.bad{background:#fbe4e4}
+input.pn{font:600 18px ui-monospace,monospace;width:11em;padding:3px}
+button{font-size:15px;padding:4px 10px;margin-right:4px;cursor:pointer}
+.c-low{color:#b42318}.c-medium{color:#b54708}.c-high{color:#1a7f37}small{color:#555}
+#top{position:sticky;top:0;background:#fff;padding-bottom:6px;border-bottom:1px solid #ddd;margin-bottom:8px}
+</style>
+<div id="side"><b>Pages</b> <select id="sort"><option value="pri">most useful first</option><option value="low">most uncertain first</option><option value="page">page order</option></select>
+<div id="list"></div></div>
+<div id="main"><div id="imgwrap"><img id="img"></div><div id="rows"><div id="top"></div><div id="body"></div></div></div>
+<script>
+const DATA=__DATA__;let S={};try{S=JSON.parse(localStorage.getItem("roxas_verify2")||"{}")}catch(e){}
+S.rows=S.rows||{};S.add=S.add||[];let cur=null;
+const save=()=>{try{localStorage.setItem("roxas_verify2",JSON.stringify(S))}catch(e){}};
+const xdone=p=>p.xr>=p.rows.length*0.8;const pagesDone=p=>xdone(p)||p.rows.every(r=>S.rows[r.id]);
+function order(){const k=document.getElementById("sort").value;return DATA.slice().sort((a,b)=>k=="page"?a.page-b.page:k=="low"?xdone(a)-xdone(b)||b.low-a.low||a.page-b.page:xdone(a)-xdone(b)||b.pri-a.pri||a.page-b.page)}
+function list(){document.getElementById("list").innerHTML=order().map(p=>`<a class="pg ${pagesDone(p)?'done':''} ${cur&&cur.page==p.page?'cur':''}" onclick="show(${p.page})">p${p.page} <small>${p.rows.length} rows${xdone(p)?' ✓✓ cross-read':pagesDone(p)?' ✓':''}</small></a>`).join("")}
+function show(n){cur=DATA.find(p=>p.page==n);document.getElementById("img").src="img/p"+String(n).padStart(3,"0")+".jpg";render();list()}
+function setRow(id,st,pn,dd){const r=cur.rows.find(x=>x.id==id),o=S.rows[id]||{};S.rows[id]={st:st,pn:pn!=null?pn:o.pn||r.pn,orig:r.orig||r.pn,page:cur.page,desc:dd!=null?dd:o.desc};save();render();list()}
+function editDesc(id,v){const o=S.rows[id]||{};setRow(id,o.st=='bad'?'bad':(o.st||'fixed')=='ok'?'fixed':(o.st||'fixed'),null,v.trim())}
+function edit(id,v){const r=cur.rows.find(x=>x.id==id);v=v.trim().toUpperCase();setRow(id,v==r.pn?"ok":"fixed",v)}
+function allOk(){cur.rows.forEach(r=>{if(!S.rows[r.id])S.rows[r.id]={st:"ok",pn:r.pn,orig:r.orig||r.pn,page:cur.page}});save();render();list()}
+function addRow(){const pn=document.getElementById("npn").value.trim().toUpperCase();if(!pn)return;S.add.push({page:cur.page,pn:pn,desc:document.getElementById("nd").value,qty:document.getElementById("nq").value});save();render()}
+function render(){const p=cur;let h=`<b>Page ${p.page}</b> &nbsp; <button onclick="nav(-1)">◀</button><button onclick="nav(1)">▶</button><br><small>Compare each part number with the image (zoom with Ctrl+scroll). Edit the number if it is wrong. ✗ = not a real part row.</small>`;
+document.getElementById("top").innerHTML=h;
+let b=p.rows.map(r=>{const s=S.rows[r.id]||{};return `<div class="row ${s.st||''}"><input class="pn" value="${s.pn||r.pn}" onchange="edit(${r.id},this.value)"> <button onclick="setRow(${r.id},'ok',null)">✓</button><button onclick="setRow(${r.id},'bad',null)">✗</button> <small class="c-${r.c}">${r.v?"cross-read":r.c}</small> qty ${r.qty||'?'}<br><input class="dd" size="34" value="${(s.desc||r.d).replace(/"/g,'&quot;')}" onchange="editDesc(${r.id},this.value)" title="edit the description if it is wrong"></div>`}).join("");
+b+=S.add.filter(a=>a.page==p.page).map(a=>`<div class="row fixed">+ ${a.pn} — ${a.desc} qty ${a.qty}</div>`).join("");
+b+=`<div class="row"><b>Missing part?</b><br><input id="npn" class="pn" placeholder="PART-NO"> <input id="nd" placeholder="description"> <input id="nq" size="2" placeholder="qty"> <button onclick="addRow()">add</button></div>`;
+b+=`<hr><button onclick="exp()">Export verified_parts.json</button> <small>${Object.keys(S.rows).length} rows reviewed, ${S.add.length} added</small>`;
+document.getElementById("body").innerHTML=b}
+function nav(d){const o=order();const i=o.findIndex(x=>x.page==cur.page);show(o[Math.max(0,Math.min(o.length-1,i+d))].page)}
+function exp(){const blob=new Blob([JSON.stringify({rows:S.rows,add:S.add},null,1)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="verified_parts.json";a.click()}
+document.getElementById("sort").onchange=list;list();show(order()[0].page);
+</script>

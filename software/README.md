@@ -23,3 +23,7 @@ Notes:
 - Two codes (P0128, P0302) appear only in the manual's summary table and are not
   captured. Handle them by hand.
 - The diagnostic flowchart pages that follow each DTC are skipped on purpose.
+
+## bench/
+CM5 voice-stack benchmark (`setup_bench.sh`, `run_bench.py`). See
+`tools/bench/README.md`.
