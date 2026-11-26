@@ -17,7 +17,8 @@ generates part numbers.
 **Decided.** One ESP32 plus one SN65HVD230 both receives and transmits, because
 reading DTCs is a request. The transceiver's Rs pin is pulled high by default
 (listen-only standby). Two series MOSFETs pull it low only when a dash
-keyswitch and an ESP32 GPIO both say yes. See `can-tap.md`.
+keyswitch and an ESP32 GPIO both say yes. See `can-tap.md`. The transmit whitelist applies to diagnostic mode; see decision 16 for
+the tiers and the future programming mode.
 
 ## 4. Two CAN controllers on the tap node
 **Decided.** The ESP32's built-in controller (TWAI) handles the busy Mazda bus.
@@ -150,6 +151,54 @@ automatic-transmission figures and 16-inch tires. Build codes come from the
 parts catalog. Options that are not on this car are stored with `applies=0` and
 never spoken. The VIN lives only in the private database table, never in git.
 
+## 16. The bridge is bi-directional, in tiers, behind the same two-yes gate
+**Decided (2026-11-26).** The ESP32 bridge near the OBD-II port listens to the
+Mazda bus and reports relevant data to the hub. It transmits only when the dash
+lockout switch and the ESP32 pin both agree. Tiers: gate closed is listen-only;
+gate open allows the whitelisted read-only diagnostic requests (decision 3);
+a separate programming mode is kept available for future ECM work. Programming
+mode stays off the voice and LLM path, with its own whitelist and entry rules to
+be written before any such work. The stock PCM is staying for now.
+
+## 17. Actions go through a command registry, never raw CAN
+**Decided.** The model and the voice path choose a named command. Code validates
+it and sends a fixed message on the private C3M bus. The reserved `action` field
+in the Replies table maps to these names. Nothing free-form from the LLM reaches
+a bus.
+
+## 18. Per-function show-mode toggle
+**Decided.** Every custom function is a row in a registry in the console
+database, default off (plain factory behavior). Class C functions need only the
+WebUI toggle. Class L functions (legal-critical lamps) need the WebUI "allowed"
+setting plus the physical show-mode switch plus parked. Class H functions (ABS
+valves, bus transmit) are not in the registry. Enforcement is on each node, so
+a crashed console cannot leave one in show mode. See `functions.md`.
+
+## 19. ABS valves are a separate system, status-only to the hub
+**Decided (design).** Solenoid valves go in the individual brake lines between
+the ABS module and the calipers, with their own controller and interlock. They
+use no CAN and take no commands from the hub, WebUI or voice. The hub receives
+status for audible and visual feedback only. Recommended: normally-open valves
+so any failure leaves stock braking. Heavy testing and fail-safing first; far
+future.
+
+## 20. Key fob lives on the hub or a private-bus subsystem
+**Decided.** Lock, unlock and trunk control come from a fob integrated into the
+hub or a private-bus module, so no unlock or immobilizer frames are ever sent
+onto the Mazda bus. The factory immobilizer is left alone.
+
+## 21. Passenger airbag module removed
+**Decided.** The module is removed, so the passenger dash panel can carry a
+screen and keyboard. The SRS control unit needs the factory-specified dummy
+load (service manual, 12 Safety) to avoid a permanent fault. Not yet done.
+
+## 22. Compute: CM5 now, RTX 2070 PC as the fallback
+**Decided.** Stay on the CM5 for the LLM, whisper.cpp and Piper. If it is too
+slow or too limited, install the full PC with the RTX 2070 in the car for
+conversation and the heavy work, and repurpose the CM5 for lighter jobs.
+LIDAR, starlight cameras and other sensor-heavy work need their own compute on
+Ethernet in any case, sending events to the hub over the private CAN.
+
 ## Open questions
 
 - Where the push-to-talk button goes.
@@ -169,3 +218,9 @@ never spoken. The VIN lives only in the private database table, never in git.
 - Pull `export parts` from the Pi back into `data/verified_parts.json`.
 - Eval sets are all burned for tuning; write a fifth set before the next
   model decision.
+- Frame IDs, byte layouts and update rates for RPM, speed and HUD values from the
+  Mazda bus; all still unverified.
+- Whether locks, trunk and windows need any CAN, or only relay modules on the
+  private bus (check the electrical manual).
+- Programming-mode rules for the bridge (decision 16) before any ECM work.
+- Per-function class (C or L) for each custom function in `functions.md`.
