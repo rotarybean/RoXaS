@@ -21,6 +21,8 @@ for r in rows:
     pages.setdefault(r["page"], []).append(dict(id=r["id"], pn=r["part_number"], orig=r["pn_raw"], qty=r["qty"], d=desc(r["desc_raw"]), c=r["confidence"], v=int(r["verified"] or 0)))
 meta = [dict(page=p, rows=v, pri=sum(bool(PRI.search(x["d"])) for x in v), low=sum(x["c"] != "high" for x in v), xr=sum(x["v"] > 0 for x in v)) for p, v in sorted(pages.items())]
 import os as _o
+_sk = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'data', 'skip_pages.json')
+if os.path.exists(_sk): meta = [m for m in meta if m['page'] not in set(json.load(open(_sk))['pages'])]   # hidden from the sheet, never deleted
 if _o.environ.get('ONLY_TODO'): meta = [m for m in meta if m['xr'] < 0.8 * len(m['rows'])]
 t0, done = time.time(), 0
 for m in meta:

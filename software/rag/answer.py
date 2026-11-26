@@ -81,6 +81,63 @@ def code_lookup(db, question):
         if tw and all(w in ws for w in tw) and (best is None or len(tw) > best[0]): best = (len(tw), code, title)
     return f"That'd be a {best[1]}, {best[2][0].lower() + best[2][1:].replace(' detected', '')}." if best else None
 
+# ---- this car's own specs (vehicle_specs table: VIN decode + build codes). Spoken sentence, no citation. ----
+_VFILL = set("what whats s is are the my mine car rx8 rx 8 mazda how much many does do it its make makes have has i me a an of for on in at to and or tell give about this that run running stock factory spec specs specification number yours your please can you size big large metric imperial kilowatts kilowatt kw newton meters meter liters litres kilograms kg millimeters mm celsius".split())
+_VMET = re.compile(r"\bmetric\b|newton|\bn.?m\b|kilo|millimet|\bliters?\b|\blitres?\b|\bkg\b|\bkw\b|meters?|celsius", re.I)
+_VUNIT = {"A": "amps", "qt": "quarts", "gal": "gallons", "in": "inches", "lb": "pounds", "ft": "feet", "ft3": "cubic feet",
+          "mpg": "mpg", "turns": "turns", "L": "liters", "kg": "kilograms", "mm": "millimeters", "m": "meters"}
+
+def _vspeak(r, metric):
+    key, label, value, unit, mv, mu, src, note = r
+    if key == "paint_code": return f"It's {note}, paint code {value}."
+    if key == "interior_code": return f"{note.replace('/', ' and ').capitalize()}, trim code {value}."
+    if key == "drivetrain": return "It's rear wheel drive."
+    if key == "wheels": return "Wheels are 18 by 8 inch alloys, front and rear."
+    if key in ("mpg_city", "mpg_hwy"):
+        where = "city" if key == "mpg_city" else "highway"
+        return f"EPA {where} fuel economy is {mv} liters per 100 kilometers." if metric and mv else f"EPA {where} fuel economy is {value} mpg."
+    if key in ("horsepower", "torque"):
+        n, rpm = [x.strip() for x in value.split("@")]
+        if metric:
+            n2 = round(float(n) * (0.7457 if key == "horsepower" else 1.35582))
+            return f"It makes {n2} {'kilowatts' if key == 'horsepower' else 'newton-meters of torque'} at {rpm} rpm." if key == "horsepower" else f"Torque is {n2} newton-meters at {rpm} rpm."
+        return f"It makes {n} horsepower at {rpm} rpm." if key == "horsepower" else f"Torque is {n} lb-ft at {rpm} rpm."
+    paren = ""
+    import re as _re
+    m = _re.search(r"\s*\(([^)]*)\)", label)
+    if m: label, paren = label.replace(m.group(0), ""), ", " + m.group(1)
+    if metric and mv: value, unit = mv, mu
+    u = _VUNIT.get(unit, unit)
+    if unit == ":1": value, u = f"{value} to 1", ""
+    if unit == "in" and "x" in value: u = ""            # "18 x 8.0 alloy" already says inches in the label
+    tail = f" {u}" if u else ""
+    if r[6] == "parts_catalog" and note and key not in ("build_code", "cabin_code"): paren += f", {note}"
+    if key == "cabin_code": paren = ", sunroof and sport suspension"
+    return f"{label} is {value}{tail}{paren}.".replace("  ", " ")
+
+def vehicle_answer(db, question, metric=None):
+    """Answer 'my car' spec questions (hp, tires, gear ratios, paint...) from vehicle_specs. None if no clean match."""
+    try: rows = db.execute("SELECT key,label,value,unit,metric_value,metric_unit,aliases,source,note FROM vehicle_specs WHERE applies=1").fetchall()
+    except Exception: return None
+    if PROC.search(question): return None
+    ws = {_stem(w) for w in re.findall(r"[a-z0-9]+", question.lower())}
+    best = None
+    for key, label, value, unit, mv, mu, aliases, src, note in rows:
+        lw = {_stem(w) for w in re.findall(r"[a-z0-9]+", label.lower())}
+        sc = 0
+        for a in [x.strip() for x in aliases.split(",") if x.strip()]:
+            aw = {_stem(w) for w in re.findall(r"[a-z0-9]+", a.lower())}
+            if aw and aw <= ws: sc = max(sc, len(a))
+        if not sc: continue
+        sc += 5 * len((lw & ws))
+        k = (sc, src == "mazdaforum_decode")
+        if best is None or k > best[0]: best = (k, (key, label, value, unit, mv, mu, src, note), lw, aliases)
+    if not best: return None
+    allowed = _VFILL | best[2] | {_stem(w) for w in re.findall(r"[a-z0-9]+", best[3].lower())}
+    if ws - {_stem(w) for w in allowed}: return None      # other words present: probably about a part or something else
+    if metric is None: metric = bool(_VMET.search(question))
+    return _vspeak(best[1], metric)
+
 def deterministic(question, res, db=None):
     if res.get("codes_missing"):
         return " ".join(f"I don't see {c} listed in my database." for c in res["codes_missing"])
@@ -91,6 +148,9 @@ def deterministic(question, res, db=None):
         if a: return a
     if res.get("dtc"):
         return " ".join(dtc_answer(d, bool(CAUSE.search(question))) for d in res["dtc"][:2])
+    if db is not None and not res.get("pn_missing"):
+        v = vehicle_answer(db, question)       # this car's own figures first: strict word guard, so part questions fall through
+        if v and not (v.startswith("Total cooling") and spec_answer(db, question)): return v
     if "parts" in res.get("route", []):
         if res.get("unmatched"):     # a named term (brand, accessory) is absent from the corpus: don't hand back a look-alike part
             return f"I don't see {', '.join(res['unmatched'])} listed in my database."

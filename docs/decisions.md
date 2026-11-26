@@ -141,6 +141,15 @@ edits are re-applied on top at startup, so a deploy never loses work. The
 console's command box is an allow-list, not a shell. The custom reply table has
 an `action` field reserved for CAN-bus commands; it is stored but not executed.
 
+## 15. This car's own figures come from a VIN decode, not the manuals
+
+Horsepower, torque, gear ratios, tire and wheel size, dimensions and fuel
+economy come from the MazdaForum VIN decode (6-speed manual, 238 hp / 159 lb-ft,
+P225/45R18 on 18x8 wheels). The DecodeThis decode was rejected: it mixed in
+automatic-transmission figures and 16-inch tires. Build codes come from the
+parts catalog. Options that are not on this car are stored with `applies=0` and
+never spoken. The VIN lives only in the private database table, never in git.
+
 ## Open questions
 
 - Where the push-to-talk button goes.

@@ -27,3 +27,13 @@ Notes:
 ## bench/
 CM5 voice-stack benchmark (`setup_bench.sh`, `run_bench.py`). See
 `tools/bench/README.md`.
+
+## tools/build_vehicle_specs.py
+Builds the `vehicle_specs` table (plus FTS5 index and a private table for the
+VIN) from the MazdaForum VIN decode and the parts-catalog build codes. Run it
+LAST in the build chain (after build_db, build_docs, build_specs). The VIN comes
+from `--vin` or from `data/derived/vin.txt` (git-ignored) and goes only into the
+private `vehicle_private` table. Keep the output database out of git.
+`rag/answer.py: vehicle_answer` speaks these rows (imperial by default, metric on
+request); the manual-sourced `specs` table still answers service specs.
+

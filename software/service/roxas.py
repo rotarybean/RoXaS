@@ -16,7 +16,7 @@ HOME = os.path.expanduser("~")
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "rag")); sys.path.insert(0, os.path.join(HERE, "..", "rag"))
 from rag import retrieve, context_for_model, terms, PNRE  # noqa: E402
-from answer import deterministic                      # noqa: E402
+from answer import deterministic, vehicle_answer                      # noqa: E402
 from prompt import messages                           # noqa: E402
 import userdata                                       # noqa: E402
 
@@ -76,7 +76,7 @@ class Roxas:
             from embed import EmbIndex
             self.emb = EmbIndex(a.emb)
             self.emb.search("warm up", 1)        # load the embedding model now, not on the first question
-        self.llm = llm; self.pending = None; self.last_spec = None
+        self.llm = llm; self.pending = None; self.last_spec = None; self.last_veh = None
         self.user_path = os.path.join(os.path.dirname(os.path.abspath(a.db)), "user.sqlite")
         u = userdata.open_user(self.user_path)
         print(f"re-applied {userdata.apply_edits(a.db, u)} hand edits", file=sys.stderr); u.close()
@@ -98,8 +98,14 @@ class Roxas:
         res = retrieve(self.db, question, k=5, emb=self.emb, emb_w=0.5)
         tm = {"retrieve_ms": (time.perf_counter() - t0) * 1000}
         det = deterministic(question, res, self.db)
+        if not det and _MET.search(question) and self.last_veh and len(terms(question)) <= 4:
+            return "chat", iter([vehicle_answer(self.db, self.last_veh, True) or voice(self.last_veh)]), tm
         if not det and _MET.search(question) and self.last_spec and len(terms(question)) <= 4:
             return "chat", iter([spec_voice(self.last_spec, True)]), tm      # "what's that in metric?"
+        if det and "(Source:" not in det and vehicle_answer(self.db, question) == det:
+            self.last_veh, self.last_spec = question, None
+            return "code", iter([det]), tm
+        if det: self.last_veh = None
         if det:
             top = (res.get("parts") or [None])[0]
             if top and top.get("verified") and "parts" in res.get("route", []) and not PNRE.search(question.upper()) \
