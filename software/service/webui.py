@@ -33,7 +33,8 @@ def console(cmd):
     u = user_db()
     if name == "help":
         return ("help | stats | reapply | export parts | export replies | backup | "
-                "match <question> | service status | service restart | llm restart | uptime | disk")
+                "match <question> | show list | show on <id> | show off <id> | show alloff | "
+                "service status | service restart | llm restart | uptime | disk")
     if name == "stats":
         r = sqlite3.connect(A.db)
         n, v = r.execute("SELECT COUNT(*), SUM(verified) FROM parts").fetchone()
@@ -55,6 +56,17 @@ def console(cmd):
     if name == "match":
         m = U.match_reply(u, " ".join(args))
         return repr(m) if m else "no custom reply matches"
+    if name == "show":
+        sub = args[0].lower() if args else "list"
+        if sub == "list":
+            rows = U.list_showmode(u)
+            return "\n".join(f"{r['id']}  {'ON ' if r['enabled'] else 'off'}  [{r['cls']}]  {r['name']}" for r in rows) or "no functions registered"
+        if sub == "alloff":
+            return f"all show functions off ({U.showmode_all_off(u)} changed)"
+        if sub in ("on", "off") and len(args) == 2:
+            fid = args[1].upper()
+            return f"{fid} {sub}" if U.set_showmode(u, fid, sub == "on") else f"unknown function '{args[1]}'"
+        return "usage: show list | show on <id> | show off <id> | show alloff"
     if name == "uptime":
         return subprocess.run(["uptime", "-p"], capture_output=True, text=True).stdout.strip()
     if name == "disk":
@@ -112,6 +124,8 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, U.page_rows(A.db, usr, int(q["n"][0])))
         if u.path == "/api/replies":
             return self._send(200, U.list_replies(usr))
+        if u.path == "/api/showmode":
+            return self._send(200, U.list_showmode(usr))
         if u.path == "/api/export":
             return self._send(200, U.export_parts(usr))
         return self._send(404, {"error": "not found"})
@@ -151,6 +165,11 @@ class H(BaseHTTPRequestHandler):
                 if u.path == "/api/reply/test":
                     m = U.match_reply(usr, d["q"])
                     return self._send(200, {"match": m})
+                if u.path == "/api/showmode/set":
+                    n = U.set_showmode(usr, str(d["id"]), d.get("enabled", 0))
+                    return self._send(200, {"ok": bool(n)}) if n else self._send(404, {"error": "unknown function"})
+                if u.path == "/api/showmode/alloff":
+                    return self._send(200, {"ok": True, "changed": U.showmode_all_off(usr)})
                 if u.path == "/api/console":
                     return self._send(200, {"out": console(d["cmd"])})
             except Exception as e:                      # surface the error in the UI instead of a dead page
@@ -176,6 +195,7 @@ def main():
         sys.exit("Password must be at least 8 characters.")
     U.open_user(A.user_db).close()
     U.apply_edits(A.db, U.open_user(A.user_db))
+    _u = U.open_user(A.user_db); U.seed_showmode(_u); _u.close()
     print(f"RoXaS web console on http://{A.host}:{A.port}  (db {A.db})", file=sys.stderr)
     ThreadingHTTPServer((A.host, A.port), H).serve_forever()
 

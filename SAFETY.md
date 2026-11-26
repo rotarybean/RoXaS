@@ -17,10 +17,13 @@ changes. The full function list is in `docs/functions.md`.
 
 ## Stated exceptions
 
-- **Passenger airbag module:** removed by the owner. The SRS control unit is
-  given the dummy load specified in the factory service manual (12 Safety), not
-  a guessed value. Follow the manual's battery-disconnect wait and handle the
-  live module face away from the body.
+- **Passenger airbag module:** removed by the owner. The service manual gives
+  removal steps and the expected resistance of each passenger inflator circuit
+  (about 1.4 to 2.9 ohms; confirm on the page), but no procedure for running
+  without the module. Any substitute load for the SRS unit must be worked out
+  and verified on the bench with a diagnostic tool, not assumed. Follow the
+  manual's battery-disconnect wait and handle the live module face away from
+  the body.
 - **Brake-line valves:** solenoid valves are added in the individual brake lines
   between the ABS module and the calipers. This is a separate hydraulic system
   with its own controller. It does not connect to CAN and is not controlled by

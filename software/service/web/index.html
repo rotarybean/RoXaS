@@ -74,6 +74,12 @@ input.pn{font:700 17px var(--mono);width:11.5em;letter-spacing:.03em}input.q{wid
   <div id="replist"></div><button class="a pri" onclick="newReply()">+ New reply</button>
  </div></section>
 
+ <section id="show" class="tab"><div class="pad">
+  <h2>Show mode</h2><div class="sub" style="margin-bottom:14px">Per-function permission to run in show mode. Everything starts off (plain factory behavior). <b>Cosmetic</b>: this switch is the only gate. <b>Legal-critical</b>: this only allows it; the node still needs the physical show-mode switch and a parked car. Nothing reads this yet: no node is wired to the car.</div>
+  <div class="rl" style="margin-bottom:14px"><button class="a no" style="margin:0" onclick="showAllOff()">All show functions OFF</button><span class="sub" id="showcount"></span></div>
+  <div id="showlist"></div>
+ </div></section>
+
  <section id="con" class="tab"><div class="pad" style="display:flex;flex-direction:column">
   <h2>Console</h2><div class="sub" style="margin-bottom:12px">Allow-listed maintenance commands. Type <b>help</b> for the list.</div>
   <div id="out">RoXaS console ready.</div>
@@ -86,6 +92,7 @@ const $=id=>document.getElementById(id);let PAGES=[],cur=null;
 /* menu: add an entry here and a <section id="..." class="tab"> and it appears */
 const TABS=[["parts","Parts",'<path d="M12 2l8 4.5v9L12 20l-8-4.5v-9z"/><path d="M12 11v9M4 6.5l8 4.5 8-4.5"/>'],
             ["rep","Replies",'<path d="M4 5h16v11H9l-5 4z"/>'],
+            ["show","Show mode",'<rect x="3" y="8" width="18" height="8" rx="4"/><circle cx="8" cy="12" r="2"/>'],
             ["con","Console",'<path d="M4 5h16v14H4z"/><path d="M8 10l3 2.5L8 15M13 15h3"/>']];
 $("mi").innerHTML=TABS.map(([id,n,ic],i)=>`<button class="mi ${i?'':'on'}" id="b-${id}" onclick="tab('${id}')"><svg viewBox="0 0 24 24">${ic}</svg>${n}</button>`).join("");
 const say=t=>{$("msg").textContent=t;setTimeout(()=>{if($("msg").textContent==t)$("msg").textContent=""},2500)};
@@ -93,7 +100,7 @@ async function api(path,body){const r=await fetch(path,body===undefined?{}:{meth
  if(r.status==401){$("login").style.display="flex";throw "login"}const j=await r.json();if(j.error){say(j.error);throw j.error}return j}
 async function login(){const r=await fetch("/api/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password:$("pw").value})});
  if(r.ok){$("login").style.display="none";$("pw").value="";start()}else $("lerr").textContent=(await r.json()).error}
-function tab(t){for(const [x] of TABS){$(x).classList.toggle("on",x==t);$("b-"+x).classList.toggle("on",x==t)}if(t=="rep")loadReplies();if(t=="con")$("cmd").focus()}
+function tab(t){for(const [x] of TABS){$(x).classList.toggle("on",x==t);$("b-"+x).classList.toggle("on",x==t)}if(t=="rep")loadReplies();if(t=="show")loadShow();if(t=="con")$("cmd").focus()}
 const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 
 /* ---------------- parts */
@@ -124,6 +131,20 @@ function newReply(){REP.push({id:null,prompts:"",replies:"",mode:"contains",acti
 async function saveReply(i){await api("/api/reply",{id:REP[i].id,prompts:$("rp"+i).value,replies:$("rr"+i).value,mode:$("rm"+i).value,action:$("ra"+i).value,enabled:$("re"+i).checked?1:0});say("saved");loadReplies()}
 async function delReply(i){if(REP[i].id){if(!confirm("Delete this reply?"))return;await api("/api/reply/del",{id:REP[i].id})}loadReplies()}
 async function testQ(){const j=await api("/api/reply/test",{q:$("tq").value});$("tres").textContent=j.match?("→ "+j.match[0]+(j.match[1]?"  [action: "+j.match[1]+"]":"")):"No custom reply matches. The normal pipeline would handle it."}
+
+/* ---------------- show mode */
+let SHOW=[];
+async function loadShow(){SHOW=await api("/api/showmode");drawShow()}
+function drawShow(){
+ const grp=(c,t,d)=>{const r=SHOW.filter(x=>x.cls==c);if(!r.length)return"";
+  return `<div class="lbl" style="margin:14px 0 4px">${t}</div><div class="sub" style="margin-bottom:8px">${d}</div>`+
+   r.map(x=>`<div class="card" style="padding:10px 14px;margin-bottom:8px"><div class="rl"><label style="display:flex;gap:10px;align-items:center;cursor:pointer;flex:1;min-width:260px"><input type="checkbox" ${x.enabled?"checked":""} onchange="setShow('${esc(x.id)}',this)"><b>${esc(x.name)}</b></label><span class="tag">${esc(x.id)}</span><span class="tag">${esc(x.node)}</span></div>${x.note?`<div class="restr">${esc(x.note)}</div>`:""}</div>`).join("")};
+ $("showlist").innerHTML=grp("L","Legal-critical","Allowed in show mode only with the physical show-mode switch on and the car parked.")+grp("C","Cosmetic","This setting is the only gate.");
+ $("showcount").textContent=SHOW.filter(x=>x.enabled).length+" of "+SHOW.length+" allowed"}
+async function setShow(id,el){const f=SHOW.find(x=>x.id==id);
+ if(el.checked&&f.cls=="L"&&!confirm("Allow '"+f.name+"' in show mode?\n\nThis is a legal-critical lamp function. It will still need the physical show-mode switch and a parked car, and must stay off for street use.")){el.checked=false;return}
+ await api("/api/showmode/set",{id,enabled:el.checked?1:0});say("saved");loadShow()}
+async function showAllOff(){await api("/api/showmode/alloff",{});say("all off");loadShow()}
 
 /* ---------------- console */
 async function run(){const c=$("cmd").value;if(!c)return;$("out").textContent+="\n› "+c+"\n";$("cmd").value="";try{$("out").textContent+=(await api("/api/console",{cmd:c})).out+"\n"}catch(e){$("out").textContent+="error: "+e+"\n"}$("out").scrollTop=1e9}

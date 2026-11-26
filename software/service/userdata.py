@@ -7,8 +7,9 @@ never loses work.
   part_state : one row per catalog row that was checked (ok / fixed / bad), keyed by (page, pn_raw) like verified_parts.json
   part_added : rows typed in by hand
   replies    : custom prompt -> reply table (plus an optional `action`, reserved for CAN-bus commands later)
+  showmode   : per-function show-mode permission (class C cosmetic / L legal-critical). Default off. See docs/functions.md
 """
-import json, re, sqlite3, time, itertools
+import json, os, re, sqlite3, time, itertools
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS part_state(page INT, pn_raw TEXT, st TEXT, pn TEXT, descr TEXT, qty TEXT, orig TEXT, ts REAL,
@@ -16,6 +17,8 @@ CREATE TABLE IF NOT EXISTS part_state(page INT, pn_raw TEXT, st TEXT, pn TEXT, d
 CREATE TABLE IF NOT EXISTS part_added(id INTEGER PRIMARY KEY, page INT, pn TEXT, descr TEXT, qty TEXT, ts REAL);
 CREATE TABLE IF NOT EXISTS replies(id INTEGER PRIMARY KEY, prompts TEXT, replies TEXT, mode TEXT DEFAULT 'contains',
   action TEXT DEFAULT '', enabled INT DEFAULT 1, ts REAL);
+CREATE TABLE IF NOT EXISTS showmode(id TEXT PRIMARY KEY, name TEXT, node TEXT, cls TEXT, note TEXT,
+  enabled INT DEFAULT 0, ts REAL);
 """
 
 
@@ -182,3 +185,61 @@ def match_reply(user, question):
         return None
     variants = [x.strip() for x in (best[1] or "").splitlines() if x.strip()]
     return (variants[next(_rot) % len(variants)] if variants else ""), best[2]
+
+
+# ---------------------------------------------------------------- show-mode registry
+SEED_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "functions_seed.json")
+
+
+def seed_showmode(user, seed_path=None):
+    """Add or refresh the function list from functions_seed.json. This never turns anything on.
+
+    Existing rows keep their on/off setting, except that a row whose class changed is reset to off.
+    Class H (hardware-gated) functions are never registered here: the web console cannot arm them.
+    """
+    try:
+        with open(seed_path or SEED_PATH, encoding="utf-8") as f:
+            items = json.load(f)
+    except (OSError, ValueError):
+        return 0
+    n = 0
+    for it in items:
+        cls = it.get("cls", "L")
+        if cls not in ("C", "L"):
+            continue
+        row = user.execute("SELECT 1 FROM showmode WHERE id=?", (it["id"],)).fetchone()
+        if row is None:
+            user.execute("INSERT INTO showmode(id,name,node,cls,note,enabled,ts) VALUES(?,?,?,?,?,0,?)",
+                         (it["id"], it.get("name", ""), it.get("node", ""), cls, it.get("note", ""), time.time()))
+            n += 1
+        else:
+            user.execute("UPDATE showmode SET name=?, node=?, note=?, "
+                         "enabled=CASE WHEN cls=? THEN enabled ELSE 0 END, cls=? WHERE id=?",
+                         (it.get("name", ""), it.get("node", ""), it.get("note", ""), cls, cls, it["id"]))
+    user.commit()
+    return n
+
+
+def list_showmode(user):
+    return [dict(id=i, name=n, node=nd, cls=c, note=no, enabled=e)
+            for i, n, nd, c, no, e in user.execute(
+                "SELECT id,name,node,cls,note,enabled FROM showmode "
+                "ORDER BY CASE cls WHEN 'L' THEN 0 ELSE 1 END, id")]
+
+
+def set_showmode(user, id_, enabled):
+    """-> rows changed (0 if the id is unknown)."""
+    n = user.execute("UPDATE showmode SET enabled=?, ts=? WHERE id=?", (1 if enabled else 0, time.time(), id_)).rowcount
+    user.commit()
+    return n
+
+
+def showmode_all_off(user):
+    n = user.execute("UPDATE showmode SET enabled=0, ts=? WHERE enabled=1", (time.time(),)).rowcount
+    user.commit()
+    return n
+
+
+def allowed_ids(user):
+    """{function id: class} for every function currently allowed in show mode."""
+    return {i: c for i, c in user.execute("SELECT id,cls FROM showmode WHERE enabled=1")}

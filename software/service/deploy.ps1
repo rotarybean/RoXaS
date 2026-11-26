@@ -5,7 +5,7 @@
 # on top of the new roxas.sqlite when the service or web console starts, so restart both after deploying.
 param([string]$Pi = "rotarybean@RoXaS-CM5", [switch]$Images)
 ssh $Pi "mkdir -p ~/roxas/rag ~/roxas/web"
-scp software/service/roxas.py software/service/userdata.py software/service/webui.py "${Pi}:~/roxas/"
+scp software/service/roxas.py software/service/userdata.py software/service/webui.py software/service/functions_seed.json "${Pi}:~/roxas/"
 scp software/service/web/index.html "${Pi}:~/roxas/web/"
 scp software/rag/rag.py software/rag/answer.py software/rag/prompt.py software/rag/embed.py "${Pi}:~/roxas/rag/"
 scp data/derived/roxas.sqlite data/derived/doc_emb.npz "${Pi}:~/roxas/"

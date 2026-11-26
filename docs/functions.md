@@ -74,15 +74,25 @@ pin agrees. The dash indicator light shows the real transceiver state.
 
 ### Signals the bridge needs to forward (all unverified)
 
-| Signal | Used by | Status |
-|---|---|---|
-| Engine RPM | Underhood animation, HUD | Hypothesis |
-| Vehicle or wheel speed | Side-vent images, HUD | Hypothesis |
-| Warning-light state (MIL) | F-105 | Hypothesis (0x420) |
-| Coolant temperature, other HUD values | HUD | Not started |
+What follows is **community-reported** (hobby sketches and shared spreadsheets,
+researched 2026-11-26), not confirmed on this car. Sources disagree in places.
 
-Each signal needs its frame ID, byte layout, scaling and update rate confirmed
-from a real capture before any module depends on it.
+| Signal | Used by | Community-reported | Status |
+|---|---|---|---|
+| Engine RPM | Underhood animation, HUD | Frame 0x201. One source: RPM sent as actual RPM x 3.85. Another sketch uses a different single-byte scaling | Hypothesis, sources conflict |
+| Vehicle speed | HUD | Frame 0x201. One source: (km/h x 100) + 10000 | Hypothesis |
+| Wheel speeds | Side-vent images (distance), HUD | Frame 0x4B0, two bytes per wheel (LF, RF, LR, RR), about 15 ms | Hypothesis, one source |
+| Warning-light state (MIL) | F-105 | Frame 0x420, byte 5 (zero-based), bit 6; bit 7 is a blinking flag; about 100 ms | Hypothesis, one source |
+| Coolant temperature | HUD | Frame 0x420, byte 0, offset -40 C (another source guesses oil temperature) | Hypothesis, unclear |
+| Throttle position | HUD | Frame 0x201, 0.5% steps | Hypothesis |
+| Other HUD values | HUD | Not researched | Not started |
+
+First bench capture plan: with the gate closed, log 0x201, 0x420 and 0x4B0
+while revving and cycling the key, and compare against the table. Each signal
+needs its frame ID, byte layout, scaling and update rate confirmed from a real
+capture before any module depends on it. A more complete community database
+(`majbthrd/MazdaCANbus` on GitHub) was not reachable during research and is
+worth opening for cross-checking.
 
 ## 3. Lighting nodes (C3M CAN, one ESP32 each)
 
@@ -131,7 +141,7 @@ bar. Design points:
 | F-401 | Interior lamps replaced with red LEDs (overhead console lamps excluded) | C | Idea | Plain swap, no node |
 | F-402 | HUD insert in the center console (car has no navigation screen) | V | Idea | Shows data the cluster lacks or shows vaguely, plus custom data: weather, C3M module health, more over time. Content list is open |
 | F-403 | Passenger-side screen and keyboard in the dash panel | V | Idea | See F-111. Passenger airbag module removed |
-| F-404 | Passenger airbag module removal | n/a | Planned | The SRS unit will flag the missing module. Use the factory-specified dummy load from the 12 Safety section of the service manual |
+| F-404 | Passenger airbag module removal | n/a | Planned | The SRS unit will flag the missing module. The manual (12 Safety) gives removal steps and expected inflator-circuit resistances but no dummy-load procedure, so the substitute load must be verified on the bench |
 | F-405 | Trunk power distribution: isolated rail with step-up and step-down supplies | n/a | Idea | Fused feed from the battery. Per-branch fuses. Keep LED return currents away from CAN nodes |
 | F-406 | Exhaust tip rings, RGB plus IR | C | Idea | IR is for later object tracking by external systems. Deferred. Needs heat isolation |
 
@@ -172,11 +182,41 @@ Applies to every function with class **C** or **L**.
   whether it is street-legal or show-only. Re-check against `lighting.md` and
   current state and federal rules whenever a function is added.
 
+## Findings from the service manuals (2026-11-26)
+
+From the factory manuals in the RAG doc set. The Electrical manual (wiring
+diagrams) has no text layer, so nothing below came from it.
+
+- **Passenger airbag removal (12 Safety):** ignition to LOCK, negative battery
+  cable off for 1 minute or more, glove box out, then bolt, connector, module.
+  The module has two inflators (No.1 and No.2); expected resistance is about
+  1.4 to 2.9 ohms for each circuit (the extracted text lost the dash, so
+  confirm on the page). After reinstalling, the SRS warning light should light
+  for about 6 seconds and go out. The manual gives no procedure for running
+  without the module, so any substitute load must be verified on the bench.
+  Missing-module codes would be in the B1913 to B1935 range (inflator No.1)
+  and the matching No.2 codes.
+- **Locks, trunk, immobilizer (11 Body):** the factory keyless control module
+  handles transmitter lock, unlock and trunk, and holds the immobilizer. It is
+  wired to the PCM through HS-CAN pins and to the transponder coil. This
+  supports keeping the fob subsystem (F-112) off the Mazda bus. Drive the door
+  lock and trunk circuits with own relays and leave this module alone.
+- **Windows and trunk opener (11 Body):** power window main switch, motor and
+  regulator, and a trunk opener switch and relay, appear as hardwired parts.
+  Confirm against the wiring diagrams.
+- **Turn-signal flasher (11 Body):** the flasher control module has simple
+  outputs that alternate between about 1 V and battery voltage. No bulb-out
+  detection was found in the searchable pages, which is not conclusive. Bench
+  test with an LED load before committing.
+- **Audio:** the parts catalog lists both 6-speaker and 9-speaker tuners, and
+  the manual mentions a Bose specification. The database does not record which
+  this car has.
+
 ## Open questions
 
 - Frame IDs, byte layouts and update rates for RPM, speed, MIL and HUD values.
 - Push-to-talk button location.
-- Whether locks, trunk and windows need any CAN at all, or just relay modules.
+- Confirm from the wiring diagrams that locks, trunk and windows need no CAN (manual text suggests hardwired switches and relays).
 - Door-ajar input source for F-113.
 - Reservoir float switch details (F-206) and which 2-stroke oil to run.
 - Whether the head unit is the Bose or single-CD variant.

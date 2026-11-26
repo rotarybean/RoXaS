@@ -189,8 +189,10 @@ onto the Mazda bus. The factory immobilizer is left alone.
 
 ## 21. Passenger airbag module removed
 **Decided.** The module is removed, so the passenger dash panel can carry a
-screen and keyboard. The SRS control unit needs the factory-specified dummy
-load (service manual, 12 Safety) to avoid a permanent fault. Not yet done.
+screen and keyboard. The SRS control unit will flag the missing module. The
+service manual (12 Safety) covers removal and gives the expected resistance of
+each passenger inflator circuit, but no dummy-load procedure, so the substitute
+load is open and must be verified on the bench. Not yet done.
 
 ## 22. Compute: CM5 now, RTX 2070 PC as the fallback
 **Decided.** Stay on the CM5 for the LLM, whisper.cpp and Piper. If it is too
